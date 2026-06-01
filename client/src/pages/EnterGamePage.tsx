@@ -304,8 +304,15 @@ export default function EnterGamePage() {
       nxtPlan.filter((p) => p.isField && !p.isGoalie).map((p) => p.playerId),
     );
 
-    const currentFieldIds = fieldPlaced.filter((f) => !f.isGoalie).map((f) => f.playerId);
-    const currentReserveIds = [...reserveIds];
+    // The plan-goalie is excluded from outfield rotation. Keep them out of
+    // both going-off and extras so a subbed-off goalie sitting in reserves
+    // doesn't get treated as an "extra" that auto-takes an outfield slot.
+    const planGoalieId = match.goaliePlayerId;
+
+    const currentFieldIds = fieldPlaced
+      .filter((f) => !f.isGoalie && f.playerId !== planGoalieId)
+      .map((f) => f.playerId);
+    const currentReserveIds = reserveIds.filter((id) => id !== planGoalieId);
 
     const planGoingOffIds = currentFieldIds.filter((pid) => !nxtFieldSet.has(pid));
     const planComingOnIds = currentReserveIds.filter((pid) => nxtFieldSet.has(pid));

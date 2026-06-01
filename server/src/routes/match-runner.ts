@@ -218,12 +218,27 @@ async function applyRotation(
     }
   }
 
+  // Plan-goalie is excluded from the outfield rotation entirely. If the
+  // current actual goalie differs (e.g. coach subbed the goalie off mid-match),
+  // we still want to leave the plan-goalie wherever they currently are — in
+  // reserves, sick bay, or playing outfield via a position swap — rather than
+  // try to drag them onto an outfield slot.
+  const [matchRow] = await db
+    .select({ goaliePlayerId: matches.goaliePlayerId })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+  const planGoalieId = matchRow?.goaliePlayerId ?? null;
+
   const reservesSet = new Set(fs.reserves);
   const currentField = fs.field.filter((f) => !f.isGoalie);
   const currentFieldIds = new Set(currentField.map((f) => f.playerId));
 
-  // Candidates.
-  const goingOffCandidates = currentField.filter((f) => !plannedField.has(f.playerId));
+  // Candidates — exclude the plan-goalie from going-off so they don't get
+  // kicked off the field if they happen to be playing outfield via a swap.
+  const goingOffCandidates = currentField.filter(
+    (f) => !plannedField.has(f.playerId) && f.playerId !== planGoalieId,
+  );
   const comingOnCandidates: { playerId: string; plannedSlot: number | null }[] = [];
   for (const [playerId, planned] of plannedField) {
     if (!currentFieldIds.has(playerId) && reservesSet.has(playerId)) {
@@ -265,8 +280,12 @@ async function applyRotation(
   // sick bay) should also come on. Pair each with a current stayer (a field
   // player planned to remain) so the field stays full. Picks first stayers
   // in order — a fair-rotation tiebreak could refine this later.
+  // Plan-goalie is excluded — if they're sitting in reserves (subbed off as
+  // tired), we don't auto-pull them onto an outfield slot.
   const matchedOnIds = new Set(pairs.map((p) => p.inPlayerId));
-  const extraReserves = fs.reserves.filter((id) => !matchedOnIds.has(id));
+  const extraReserves = fs.reserves.filter(
+    (id) => !matchedOnIds.has(id) && id !== planGoalieId,
+  );
   if (extraReserves.length > 0) {
     const stayerPool = currentField.filter(
       (f) => plannedField.has(f.playerId) && !usedOff.has(f.playerId),
