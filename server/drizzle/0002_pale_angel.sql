@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "field_state" jsonb;
