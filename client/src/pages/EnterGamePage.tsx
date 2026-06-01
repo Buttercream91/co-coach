@@ -303,42 +303,67 @@ export default function EnterGamePage() {
     const nxtFieldSet = new Set(
       nxtPlan.filter((p) => p.isField && !p.isGoalie).map((p) => p.playerId),
     );
+    const plannedSlotByPlayer = new Map<string, number | null>(
+      nxtPlan
+        .filter((p) => p.isField && !p.isGoalie)
+        .map((p) => [p.playerId, p.positionSlot]),
+    );
 
-    // The plan-goalie is excluded from outfield rotation. Keep them out of
-    // both going-off and extras so a subbed-off goalie sitting in reserves
-    // doesn't get treated as an "extra" that auto-takes an outfield slot.
+    // Plan-goalie is excluded from outfield rotation so a goalie sitting in
+    // reserves doesn't get auto-pulled onto an outfield slot.
     const planGoalieId = match.goaliePlayerId;
 
-    const currentFieldIds = fieldPlaced
-      .filter((f) => !f.isGoalie && f.playerId !== planGoalieId)
-      .map((f) => f.playerId);
+    const currentOutfield = fieldPlaced.filter(
+      (f) => !f.isGoalie && f.playerId !== planGoalieId,
+    );
     const currentReserveIds = reserveIds.filter((id) => id !== planGoalieId);
 
-    const planGoingOffIds = currentFieldIds.filter((pid) => !nxtFieldSet.has(pid));
-    const planComingOnIds = currentReserveIds.filter((pid) => nxtFieldSet.has(pid));
-    const stayerIds = currentFieldIds.filter((pid) => nxtFieldSet.has(pid));
-    const extraReserveIds = currentReserveIds.filter((pid) => !nxtFieldSet.has(pid));
+    const planGoingOff = currentOutfield
+      .filter((f) => !nxtFieldSet.has(f.playerId))
+      .map((f) => ({ playerId: f.playerId, currentSlot: f.slot }));
+    const planComingOn = currentReserveIds
+      .filter((id) => nxtFieldSet.has(id))
+      .map((id) => ({ playerId: id, plannedSlot: plannedSlotByPlayer.get(id) ?? null }));
 
-    // Match the server's pair-up logic: a swap only happens when BOTH sides
-    // exist. Going-off players without a coming-on partner stay on the field
-    // (so they shouldn't appear in the list as "Player → —"). Same in
-    // reverse for coming-on without a partner.
-    const planSwapCount = Math.min(planGoingOffIds.length, planComingOnIds.length);
-    const extraSwapCount = Math.min(extraReserveIds.length, stayerIds.length);
-    const goingOffIds = [
-      ...planGoingOffIds.slice(0, planSwapCount),
-      ...stayerIds.slice(0, extraSwapCount),
-    ];
-    const comingOnIds = [
-      ...planComingOnIds.slice(0, planSwapCount),
-      ...extraReserveIds.slice(0, extraSwapCount),
-    ];
+    // Mirror the server's pair-up: slot-match first (a coming-on whose
+    // planned slot equals a going-off's current slot), then leftover by index.
+    const pairs: { offId: string; onId: string }[] = [];
+    const usedOff = new Set<string>();
+    const usedOn = new Set<string>();
 
-    const len = goingOffIds.length; // === comingOnIds.length
-    for (let i = 0; i < len; i++) {
+    for (const on of planComingOn) {
+      if (on.plannedSlot === null) continue;
+      const off = planGoingOff.find(
+        (g) => g.currentSlot === on.plannedSlot && !usedOff.has(g.playerId),
+      );
+      if (off) {
+        pairs.push({ offId: off.playerId, onId: on.playerId });
+        usedOff.add(off.playerId);
+        usedOn.add(on.playerId);
+      }
+    }
+    const restOff = planGoingOff.filter((g) => !usedOff.has(g.playerId));
+    const restOn = planComingOn.filter((o) => !usedOn.has(o.playerId));
+    for (let i = 0; i < Math.min(restOff.length, restOn.length); i++) {
+      pairs.push({ offId: restOff[i].playerId, onId: restOn[i].playerId });
+    }
+
+    // Extras — stayers paired with reserves who aren't in the plan (e.g. a
+    // sick-bay-returned player). Mirrors the server's extras logic.
+    const matchedOffIds = new Set(pairs.map((p) => p.offId));
+    const stayerIds = currentOutfield
+      .filter((f) => nxtFieldSet.has(f.playerId) && !matchedOffIds.has(f.playerId))
+      .map((f) => f.playerId);
+    const extraReserveIds = currentReserveIds.filter((id) => !nxtFieldSet.has(id));
+    const extraSwaps = Math.min(extraReserveIds.length, stayerIds.length);
+    for (let i = 0; i < extraSwaps; i++) {
+      pairs.push({ offId: stayerIds[i], onId: extraReserveIds[i] });
+    }
+
+    for (const pair of pairs) {
       upcomingSubs.push({
-        off: playersById.get(goingOffIds[i]) ?? null,
-        on: playersById.get(comingOnIds[i]) ?? null,
+        off: playersById.get(pair.offId) ?? null,
+        on: playersById.get(pair.onId) ?? null,
       });
     }
   }
