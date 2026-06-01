@@ -72,6 +72,7 @@ export type MatchEventType =
   | 'position_switch'
   | 'segment_advance'
   | 'rotate_back'
+  | 'reserve_to_sick_bay'
   | 'note'
   | 'half_start'
   | 'half_end'

@@ -577,6 +577,30 @@ matchRunnerRouter.post('/:id/dev/clock-multiplier', async (req, res) => {
   res.json({ liveState: next });
 });
 
+// ---------- Move a reserve straight into the sick bay ----------
+
+matchRunnerRouter.post('/:id/to-sick-bay', async (req, res) => {
+  const schema = z.object({ playerId: z.string().uuid() });
+  const { playerId } = schema.parse(req.body);
+  const { match, fs } = await loadFieldStateOrThrow(req.params.id);
+  if (match.teamId !== req.teamId!) throw new HttpError(403, 'Not your team');
+
+  if (!fs.reserves.includes(playerId)) {
+    throw new HttpError(400, 'Player is not currently in reserves');
+  }
+  const next: FieldState = {
+    ...fs,
+    reserves: fs.reserves.filter((id) => id !== playerId),
+    sickBay: [...fs.sickBay, playerId],
+  };
+  await setFieldState(match.id, next);
+  const live = parseLive(match.liveState);
+  const half = live?.phase === 'second_half' ? 2 : 1;
+  const clock = live ? currentClockSec(live, new Date()) : 0;
+  await recordEvent(match.id, 'reserve_to_sick_bay', { playerId }, clock, half);
+  res.json({ fieldState: next });
+});
+
 // ---------- Rotate sick-bay player back into reserves ----------
 
 matchRunnerRouter.post('/:id/rotate-back', async (req, res) => {

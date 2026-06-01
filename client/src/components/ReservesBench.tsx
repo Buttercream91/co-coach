@@ -13,6 +13,9 @@ export function ReservesBench({
   emptyText = 'No reserves this segment.',
   tone = 'normal',
   readOnly = false,
+  showAddSlot = false,
+  onAddSlotClick,
+  addSlotLabel = '+',
 }: {
   reserves: Player[];
   highlightColors: Record<string, string | undefined>;
@@ -22,6 +25,9 @@ export function ReservesBench({
   emptyText?: string;
   tone?: 'normal' | 'sickbay';
   readOnly?: boolean;
+  showAddSlot?: boolean;
+  onAddSlotClick?: () => void;
+  addSlotLabel?: string;
 }) {
   const isSickbay = tone === 'sickbay';
   return (
@@ -41,7 +47,7 @@ export function ReservesBench({
       >
         {title} ({reserves.length})
       </div>
-      {reserves.length === 0 ? (
+      {reserves.length === 0 && !showAddSlot ? (
         <div className="text-xs text-slate-500">{emptyText}</div>
       ) : (
         <ul className="flex flex-wrap gap-2">
@@ -57,6 +63,31 @@ export function ReservesBench({
               />
             </li>
           ))}
+          {showAddSlot && onAddSlotClick && (
+            <li>
+              <button
+                type="button"
+                onClick={onAddSlotClick}
+                className={`flex flex-col items-center min-w-[72px] group ${
+                  isSickbay ? 'text-rose-700' : 'text-emerald-700'
+                }`}
+                aria-label="Move selected player here"
+              >
+                <span
+                  className={`relative w-14 h-16 flex items-center justify-center rounded-full border-2 border-dashed group-active:scale-95 transition ${
+                    isSickbay
+                      ? 'border-rose-400 bg-rose-100/70 group-hover:bg-rose-200'
+                      : 'border-emerald-400 bg-emerald-50 group-hover:bg-emerald-100'
+                  }`}
+                >
+                  <span className="text-3xl font-bold leading-none">+</span>
+                </span>
+                <span className="mt-1 text-[10px] leading-tight font-medium text-center">
+                  {addSlotLabel}
+                </span>
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

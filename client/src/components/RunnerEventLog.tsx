@@ -133,6 +133,13 @@ function describe(
           {p(payload.playerId as string)}
         </span>
       );
+    case 'reserve_to_sick_bay':
+      return (
+        <span>
+          <span className="font-semibold">Sent to sick bay:</span>{' '}
+          {p(payload.playerId as string)}
+        </span>
+      );
     case 'segment_advance': {
       const swaps = (payload.swaps as { outPlayerId: string; inPlayerId: string }[]) ?? [];
       if (swaps.length === 0) {

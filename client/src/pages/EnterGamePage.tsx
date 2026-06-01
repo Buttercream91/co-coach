@@ -109,6 +109,11 @@ export default function EnterGamePage() {
       api(`/matches/${matchId}/rotate-back`, { method: 'POST', json: { playerId } }),
     onSuccess: refetchAll,
   });
+  const m_toSickBay = useMutation({
+    mutationFn: (playerId: string) =>
+      api(`/matches/${matchId}/to-sick-bay`, { method: 'POST', json: { playerId } }),
+    onSuccess: refetchAll,
+  });
   const m_event = useMutation({
     mutationFn: (body: { eventType: string; payload: Record<string, unknown> }) =>
       api(`/matches/${matchId}/events`, { method: 'POST', json: body }),
@@ -545,6 +550,14 @@ export default function EnterGamePage() {
           title="Sick Bay"
           emptyText="No one off injured / rested."
           tone="sickbay"
+          showAddSlot={inPlay && selectedArea === 'reserve' && !!selectedId}
+          onAddSlotClick={() => {
+            if (selectedId) {
+              m_toSickBay.mutate(selectedId);
+              setSelectedId(null);
+            }
+          }}
+          addSlotLabel="Move here"
         />
       </div>
 

@@ -2,6 +2,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { KebabMenu } from '../components/KebabMenu';
+import { useAuth } from '../auth/AuthContext';
+import { useDevMode } from '../dev/DevModeContext';
 
 type Match = {
   id: string;
@@ -17,6 +19,8 @@ type Match = {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { activeTeam } = useAuth();
+  const { devMode } = useDevMode();
   const { data, isLoading, error } = useQuery({
     queryKey: ['matches'],
     queryFn: () => api<{ matches: Match[] }>('/matches'),
@@ -30,6 +34,10 @@ export default function DashboardPage() {
   const matches = data?.matches ?? [];
   const upcoming = matches.filter((m) => m.status !== 'completed');
   const previous = matches.filter((m) => m.status === 'completed');
+
+  // Dev-mode delete on completed matches is owner-only — gives the team
+  // creator a way to clean up test/incorrectly-saved games.
+  const canDevDelete = devMode && activeTeam?.role === 'owner';
 
   return (
     <div className="space-y-6">
@@ -114,6 +122,25 @@ export default function DashboardPage() {
                   <Link to={`/matches/${m.id}/stats`} className="btn-secondary">
                     Match stats
                   </Link>
+                  {canDevDelete && (
+                    <KebabMenu
+                      items={[
+                        {
+                          label: 'Delete (dev)',
+                          danger: true,
+                          onSelect: () => {
+                            if (
+                              confirm(
+                                `Delete completed match vs ${m.opponent}? This removes the game and all its events. Player season playtime is NOT auto-reverted.`,
+                              )
+                            ) {
+                              remove.mutate(m.id);
+                            }
+                          },
+                        },
+                      ]}
+                    />
+                  )}
                 </div>
               </li>
             ))}
