@@ -319,15 +319,26 @@ export default function EnterGamePage() {
     const stayerIds = currentFieldIds.filter((pid) => nxtFieldSet.has(pid));
     const extraReserveIds = currentReserveIds.filter((pid) => !nxtFieldSet.has(pid));
 
-    const extraSwaps = Math.min(extraReserveIds.length, stayerIds.length);
-    const goingOffIds = [...planGoingOffIds, ...stayerIds.slice(0, extraSwaps)];
-    const comingOnIds = [...planComingOnIds, ...extraReserveIds.slice(0, extraSwaps)];
+    // Match the server's pair-up logic: a swap only happens when BOTH sides
+    // exist. Going-off players without a coming-on partner stay on the field
+    // (so they shouldn't appear in the list as "Player → —"). Same in
+    // reverse for coming-on without a partner.
+    const planSwapCount = Math.min(planGoingOffIds.length, planComingOnIds.length);
+    const extraSwapCount = Math.min(extraReserveIds.length, stayerIds.length);
+    const goingOffIds = [
+      ...planGoingOffIds.slice(0, planSwapCount),
+      ...stayerIds.slice(0, extraSwapCount),
+    ];
+    const comingOnIds = [
+      ...planComingOnIds.slice(0, planSwapCount),
+      ...extraReserveIds.slice(0, extraSwapCount),
+    ];
 
-    const maxLen = Math.max(goingOffIds.length, comingOnIds.length);
-    for (let i = 0; i < maxLen; i++) {
+    const len = goingOffIds.length; // === comingOnIds.length
+    for (let i = 0; i < len; i++) {
       upcomingSubs.push({
-        off: goingOffIds[i] ? playersById.get(goingOffIds[i]) ?? null : null,
-        on: comingOnIds[i] ? playersById.get(comingOnIds[i]) ?? null : null,
+        off: playersById.get(goingOffIds[i]) ?? null,
+        on: playersById.get(comingOnIds[i]) ?? null,
       });
     }
   }
